@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-29
+
 ### Added
 
 - First version: a Droplet (Hydrific) water flow sensor read through its local
@@ -22,3 +24,6 @@ the notes of the version's GitHub Release.
   apart, kept across restarts), pings every 30 s, pairing code refused kept
   without retries (lifted only by data of the Droplet), 429/5xx pause, test
   button. Read-only.
+
+[Unreleased]: https://github.com/LM1LC3N7/gladys-droplet/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/LM1LC3N7/gladys-droplet/releases/tag/v0.1.1

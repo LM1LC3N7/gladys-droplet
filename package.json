@@ -1,6 +1,6 @@
 {
   "name": "gladys-droplet",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Droplet (Hydrific) water flow sensor for Gladys Assistant, read on the home network through its local WebSocket (pairing code, pinned certificate): flow rate, a water index built from the volumes it reports, server connectivity, signal quality and leak alerts. Read-only.",
   "type": "module",
