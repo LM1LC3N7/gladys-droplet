@@ -57,6 +57,14 @@
 - Leak alerts as `leak-sensor` / `binary` (only known while the Droplet
   reaches the Hydrific servers, said in the docs).
 - No mDNS discovery: the address is typed.
+- The 10 L slack of the volume bound is per report, not per duration (review
+  r1, m5, kept as it is): a burst of 10 L reports would be counted.
+- Two closes at once before any data = the code taken as refused (firmware
+  1.4.1 and older), said as "most likely" in the status: a Droplet full of
+  local clients would look the same (to confirm on a real Droplet).
+- Flow and leak alerts keep their last value when the Droplet is unreachable
+  (no "unknown" state in Gladys); the badge turns unreachable after a minute
+  (review r1, m2, said in the docs).
 
 ## Later
 

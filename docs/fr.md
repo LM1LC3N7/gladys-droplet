@@ -34,7 +34,11 @@ envoyé seulement au Droplet, en TLS, après vérification de son certificat.
 | Débit inhabituel     | 0/1   | chasse d'eau qui fuit, fuite lente                        |
 
 Fuite et débit inhabituel ne sont connus que lorsque le Droplet joint les
-serveurs Hydrific. Les valeurs instantanées partent vers Gladys au plus toutes
+serveurs Hydrific. Quand le Droplet est injoignable, le débit et les alertes
+restent à leur dernière valeur dans Gladys (Gladys n'a pas d'état « inconnu »
+pour eux) : la pastille de l'appareil passe à « injoignable » au bout d'une
+minute et le statut de l'intégration le dit ; une scène qui s'appuie sur
+l'alerte de fuite doit aussi regarder cette pastille. Les valeurs instantanées partent vers Gladys au plus toutes
 les 10 secondes ; une valeur de plus de 2 minutes n'est pas renvoyée comme
 neuve (après un redémarrage de Gladys, un appareil créé).
 
@@ -55,7 +59,10 @@ par minute après que /data l'a enregistré. Ses règles :
   Les relevés suivants comptent normalement. Si c'est juste, cliquez deux fois
   sur **Accepter le volume retenu** (de 3 secondes à 5 minutes d'écart) : le
   second clic ajoute exactement ce que le premier a listé. Un relevé négatif
-  aussi grand est ignoré (compté dans le statut) ;
+  aussi grand est ignoré (compté dans le statut). Les 10 L sont accordés par
+  relevé : un Droplet qui enverrait en rafale beaucoup de relevés de 10 L
+  chacun les verrait comptés (marge gardée exprès, pour que le premier relevé
+  d'une connexion ne soit pas retenu pour rien) ;
 - les volumes relevés avant que le Droplet donne son identifiant comptent pour
   ce Droplet dès qu'il l'a donné ; les volumes écoulés quand l'intégration
   n'est pas connectée au Droplet ne sont pas connus (l'index reste où il
@@ -78,7 +85,10 @@ par minute après que /data l'a enregistré. Ses règles :
   1.4.1 ou plus ancien, connexion fermée par le Droplet avant tout message,
   deux fois de suite) : plus rien n'est tenté de soi-même tant que vous
   n'enregistrez pas à nouveau le code ou que le bouton **Tester la connexion**
-  n'obtient pas de connexion (un essai par clic, au rythme ci-dessus).
+  ne reçoit pas de données du Droplet (un essai par clic, au rythme ci-dessus ;
+  une connexion ouverte puis fermée aussitôt ne lève rien). Deux fermetures
+  immédiates peuvent aussi vouloir dire que le Droplet n'accepte plus d'autre
+  client local (Home Assistant connecté aussi ?) : le statut dit les deux.
 - HTTP 429 ou 5xx à l'ouverture : pause d'une minute, doublée jusqu'à 6 heures,
   gardée d'un redémarrage à l'autre.
 - **Certificat** : épinglé à la première connexion (écrit dans /data avant

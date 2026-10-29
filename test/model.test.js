@@ -83,6 +83,13 @@ test('not a message of the Droplet: undefined, never a crash, no prototype pollu
   assert.equal({}.polluted, undefined);
   assert.equal(cleanText('a\u2028b'), undefined);
   assert.equal(cleanText('ok'), 'ok');
+  // An `ids` inherited (a polluted prototype elsewhere) never makes an info message.
+  Object.prototype.ids = 'Droplet-evil';
+  try {
+    assert.equal(parseMessage('{"flow":1}').kind, 'state');
+  } finally {
+    delete Object.prototype.ids;
+  }
 });
 
 test('the address: IP, host, IPv6, a pasted wss/https URL; refused: http, ws, broadcast, credentials, a path', () => {

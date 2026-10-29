@@ -29,7 +29,8 @@ fake Droplet (a local TLS WebSocket server). Reports are welcome.
   clicks.
 - One connection at a time, never two attempts less than 30 s apart (kept
   across restarts), backoff up to 30 min, pings every 30 s, a refused pairing
-  code never tried again by itself, 429/5xx paused up to 6 h.
+  code never tried again by itself (lifted only by data of the Droplet),
+  429/5xx paused up to 6 h.
 
 ## Development
 

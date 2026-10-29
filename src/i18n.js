@@ -118,19 +118,24 @@ export const T = {
     en: 'A volume report is held back (see the integration status).',
     fr: 'Un relevé de volume est retenu (voir le statut de l’intégration).',
   },
-  refused: (address, notes) =>
+  refused: (address, early, notes) =>
     withNotes(
-      {
-        en: `The Droplet at ${address} refuses the pairing code: nothing is tried until the code is saved again (copy it from the Droplet app) or the "Test the connection" button gets a connection.`,
-        fr: `Le Droplet à ${address} refuse le code d’appairage : plus rien n’est tenté tant que le code n’est pas enregistré à nouveau (copiez-le depuis l’application Droplet) ou que le bouton « Tester la connexion » n’obtient pas de connexion.`,
-      },
+      early
+        ? {
+            en: `The Droplet at ${address} closed the connection at once, before any data, twice in a row: most likely it refuses the pairing code (firmware 1.4.1 and older do so), or it accepts no more local clients. Nothing is tried until the code is saved again (copy it from the Droplet app) or the "Test the connection" button gets data from it.`,
+            fr: `Le Droplet à ${address} a fermé la connexion aussitôt, avant toute donnée, deux fois de suite : le plus probable est qu’il refuse le code d’appairage (ce que font les firmwares 1.4.1 et plus anciens), ou qu’il n’accepte plus d’autre client local. Plus rien n’est tenté tant que le code n’est pas enregistré à nouveau (copiez-le depuis l’application Droplet) ou que le bouton « Tester la connexion » n’en reçoit pas de données.`,
+          }
+        : {
+            en: `The Droplet at ${address} refuses the pairing code: nothing is tried until the code is saved again (copy it from the Droplet app) or the "Test the connection" button receives data from it.`,
+            fr: `Le Droplet à ${address} refuse le code d’appairage : plus rien n’est tenté tant que le code n’est pas enregistré à nouveau (copiez-le depuis l’application Droplet) ou que le bouton « Tester la connexion » n’en reçoit pas de données.`,
+          },
       notes,
     ),
   paused: (address, pause, left, notes) =>
     withNotes(
       {
-        en: `The Droplet at ${address} answered ${pause.code === 'rate_limited' ? '"too many requests"' : `an error${pause.status ? ` ${pause.status}` : ''}`}: connection paused for ${delay(left).en}.`,
-        fr: `Le Droplet à ${address} a répondu ${pause.code === 'rate_limited' ? '« trop de requêtes »' : `une erreur${pause.status ? ` ${pause.status}` : ''}`} : connexion en pause pendant ${delay(left).fr}.`,
+        en: `The Droplet at ${address} answered ${pause.cause === 'rate_limited' ? '"too many requests"' : `an error${pause.status ? ` ${pause.status}` : ''}`}: connection paused for ${delay(left).en}.`,
+        fr: `Le Droplet à ${address} a répondu ${pause.cause === 'rate_limited' ? '« trop de requêtes »' : `une erreur${pause.status ? ` ${pause.status}` : ''}`} : connexion en pause pendant ${delay(left).fr}.`,
       },
       notes,
     ),

@@ -20,4 +20,5 @@ the notes of the version's GitHub Release.
   until accepted in two clicks), server connectivity, signal quality, leak and
   unusual flow alerts. Connection paced (never two attempts less than 30 s
   apart, kept across restarts), pings every 30 s, pairing code refused kept
-  without retries, 429/5xx pause, test button. Read-only.
+  without retries (lifted only by data of the Droplet), 429/5xx pause, test
+  button. Read-only.

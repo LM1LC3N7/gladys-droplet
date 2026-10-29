@@ -21,7 +21,7 @@
 // twice in a row (1.4.1 and older): refused. Kept in /data, nothing tried by
 // itself until the code is saved again (a code different from the one
 // refused, or any save after a restart: the code itself is never kept) or the
-// test button gets a connection (one attempt per click, at the pace).
+// test button gets data from the Droplet (one attempt per click, at the pace).
 //
 // Values: nothing is published before the device id of the connection is
 // known (its information message); the volumes reported before it count once
@@ -121,7 +121,7 @@ export function readMemory(data) {
     out.certChanged = { key: m.certChanged.key, seen: m.certChanged.seen };
   }
   if (isPlain(m.refused) && typeof m.refused.key === 'string') {
-    out.refused = { key: m.refused.key };
+    out.refused = { key: m.refused.key, ...(m.refused.early === true ? { early: true } : {}) };
   }
   const p = m.pause;
   if (
@@ -130,13 +130,13 @@ export function readMemory(data) {
     finite(p.until) &&
     Number.isInteger(p.count) &&
     p.count >= 1 &&
-    (p.code === CODES.RATE_LIMITED || p.code === CODES.SERVER)
+    (p.cause === CODES.RATE_LIMITED || p.cause === CODES.SERVER)
   ) {
     out.pause = {
       key: p.key,
       until: p.until,
       count: Math.min(p.count, 32),
-      code: p.code,
+      cause: p.cause,
       status: Number.isInteger(p.status) ? p.status : null,
     };
   }
@@ -277,7 +277,7 @@ export class DropletApp {
       certChanged: m.certChanged ?? null,
       refused: m.refused ?? null,
       pause: p
-        ? { key: p.key, until: p.until, count: p.count, code: p.code, status: p.status }
+        ? { key: p.key, until: p.until, count: p.count, cause: p.cause, status: p.status }
         : null,
       lastAttemptAt: this.lastAttemptAt ?? null,
       seen: m.seen,
@@ -687,12 +687,11 @@ export class DropletApp {
     conn.lastAliveAt = mono;
     session.conn = conn;
     session.lastError = undefined;
-    const wasRefused = Boolean(m.refused);
+    // The handshake passed: the pause and the changed certificate are over.
+    // A refused code is NOT lifted here: firmware 1.4.1 and older open, then
+    // close at once on a wrong code; only data lifts it (markData, review r1 I1).
     m.pause = undefined;
-    m.refused = undefined;
     m.certChanged = undefined;
-    this.refusedCode = undefined;
-    if (wasRefused) this.logger.info('droplet: the Droplet accepts the pairing code again');
     // What came with the 101 or before this turn (ws emits in the same tick).
     const early = conn.early;
     conn.early = undefined;
@@ -732,7 +731,7 @@ export class DropletApp {
         until: now + wait,
         due: mono + wait,
         count: Math.min(count, 32),
-        code,
+        cause: code,
         status: Number.isInteger(err.status) ? err.status : null,
       };
       session.lastError = err;
@@ -763,8 +762,9 @@ export class DropletApp {
   }
 
   /** The pairing code is refused: kept in /data, nothing tried by itself. */
-  async refuse(session) {
-    this.memory.refused = { key: session.key };
+  async refuse(session, { early = false } = {}) {
+    // A marker only: never the code nor a hash of it (a short code would be found back).
+    this.memory.refused = { key: session.key, ...(early ? { early: true } : {}) };
     this.refusedCode = this.config.code;
     session.failures = 0;
     session.nextTryAt = undefined;
@@ -859,7 +859,7 @@ export class DropletApp {
     if (early) {
       session.earlyCloses += 1;
       if (session.earlyCloses >= EARLY_CLOSES_REFUSED) {
-        this.attemptRun = this.refuse(session).then(() => this.schedule());
+        this.attemptRun = this.refuse(session, { early: true }).then(() => this.schedule());
         return;
       }
       this.retryLater(
@@ -928,6 +928,14 @@ export class DropletApp {
     session.failures = 0;
     session.nextTryAt = undefined;
     session.downSince = undefined;
+    const m = this.memory;
+    if (m.refused) {
+      // Data of the Droplet: the code is right. Lifted, kept in /data.
+      m.refused = undefined;
+      this.refusedCode = undefined;
+      this.logger.info('droplet: the Droplet accepts the pairing code again');
+      this.saveState();
+    }
     this.updateStatus();
     this.publishBadges();
   }
@@ -1011,15 +1019,30 @@ export class DropletApp {
     const outcome = target.add(ml, elapsed, at);
     if (id) this.lastReportAt.set(id, at);
     else conn.lastReportAt = at;
-    if (outcome === 'held') {
+    if (outcome === 'held' || outcome === 'ignored') this.volumeWarning(outcome);
+  }
+
+  /**
+   * A report held or ignored: one log line (and a status) for the first, then
+   * at most one a minute with the count since: a burst never floods the logs
+   * (review r1, m1). The status shows the totals anyway.
+   */
+  volumeWarning(outcome) {
+    const mono = this.monotonic();
+    const w = (this.volumeWarn ??= { held: 0, ignored: 0, at: undefined });
+    w[outcome] += 1;
+    if (w.at !== undefined && mono - w.at < INDEX_EVERY) return;
+    if (w.held > 0) {
       this.logger.warn(
-        'droplet: a volume report too large for the time since the previous one: held',
+        `droplet: ${w.held} volume report(s) too large for the time since the previous one: held`,
       );
-      this.updateStatus();
-      this.publishBadges();
-    } else if (outcome === 'ignored') {
-      this.logger.warn('droplet: a negative volume report too large: ignored');
     }
+    if (w.ignored > 0) {
+      this.logger.warn(`droplet: ${w.ignored} negative volume report(s) too large: ignored`);
+    }
+    this.volumeWarn = { held: 0, ignored: 0, at: mono };
+    this.updateStatus();
+    this.publishBadges();
   }
 
   // --- Publication -----------------------------------------------------------------
@@ -1250,7 +1273,9 @@ export class DropletApp {
     const mono = this.monotonic();
     const notes = this.standingNotes();
     const m = this.memory;
-    if (this.refusedApplies()) return [false, T.refused(address, notes)];
+    if (this.refusedApplies()) {
+      return [false, T.refused(address, Boolean(m.refused.early), notes)];
+    }
     const left = this.pauseLeft(mono);
     if (left > 0) return [false, T.paused(address, m.pause, left, notes)];
     if (m.certChanged && m.certChanged.key === session.key) {

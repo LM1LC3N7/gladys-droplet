@@ -32,7 +32,10 @@ sent only to the Droplet, over TLS, after its certificate was checked.
 | Unusual flow        | 0/1  | a leaky flapper, a slow leak                    |
 
 Leak and unusual flow are only known while the Droplet reaches the Hydrific
-servers. The live values go to Gladys at most every 10 seconds; a value older
+servers. When the Droplet is unreachable, the flow rate and the alerts stay at
+their last value in Gladys (Gladys has no "unknown" state for them): the badge
+of the device turns "unreachable" after a minute and the integration status
+says it; a scene that relies on the leak alert should check that badge too. The live values go to Gladys at most every 10 seconds; a value older
 than 2 minutes is not sent again as new (after a restart of Gladys, a device
 created).
 
@@ -52,7 +55,10 @@ after /data holds it. Its rules:
   nor by repetition. The reports after it count as usual. If it is right,
   click **Accept the held volume** twice (3 seconds to 5 minutes apart): the
   second click adds exactly what the first one listed. A negative report that
-  large is ignored (counted in the status);
+  large is ignored (counted in the status). The 10 L are allowed per report:
+  a Droplet sending many reports of 10 L each in a burst would have them
+  counted (a margin kept on purpose, so that the first report of a
+  connection is not held for nothing);
 - the volumes reported before the Droplet gives its device id count for that
   Droplet once it does; the volumes reported while the integration is not
   connected to the Droplet are not known (the index stays where it was);
@@ -73,8 +79,11 @@ after /data holds it. Its rules:
 - **Pairing code refused** (an HTTP 401/403 at the handshake, or, with
   firmware 1.4.1 and older, the connection closed by the Droplet before any
   message, twice in a row): nothing is tried by itself until you save the code
-  again or the **Test the connection** button gets a connection (one attempt
-  per click, at the pace above).
+  again or the **Test the connection** button receives data from the Droplet
+  (one attempt per click, at the pace above; a connection that opens and
+  closes at once lifts nothing). Two closes at once may also mean that the
+  Droplet accepts no more local clients (Home Assistant connected too?): the
+  status says both.
 - HTTP 429 or 5xx at the handshake: a pause of 1 minute, doubled up to 6 hours,
   kept across restarts.
 - **Certificate**: pinned at the first connection (written to /data before the

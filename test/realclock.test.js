@@ -68,3 +68,41 @@ test('real clock x20 over TLS: pinned, published, attempts paced at 30 s; timers
   assert.ok(!JSON.stringify(store.data).includes(CODE));
   assert.ok(!lines.join('\n').includes(CODE));
 });
+
+test('over TLS: a typed fingerprint that is not the certificate met: not one byte of the code', async (t) => {
+  const srv = await dropletServer({ code: CODE });
+  t.after(() => srv.close());
+  const clock = realClock({ speed: SPEED });
+  const gladys = createFakeGladys({ selector: 'droplet', config: {} });
+  await gladys.connect();
+  const store = createMemoryStore();
+  const app = new DropletApp({
+    gladys,
+    logger: { info: quiet, warn: quiet, error: quiet, debug: quiet },
+    now: clock.now,
+    monotonic: clock.monotonic,
+    timers: clock.timers,
+    store,
+  });
+  const other = `${'CD:'.repeat(31)}CD`;
+  try {
+    await app.start({
+      address: `127.0.0.1:${srv.port}`,
+      pairing_code: CODE,
+      certificate_fingerprint: other,
+    });
+    await until(() =>
+      /not the fingerprint typed/.test(gladys.fake.connectionStatus?.message?.en ?? ''),
+    );
+    // Two attempts (the second 30 s later): still nothing.
+    await until(() => srv.upgrades.length > 0 || clock.monotonic() > 0, 100);
+    await clock.sleep(35_000);
+  } finally {
+    await app.stop().catch(() => {});
+    clock.close();
+  }
+  assert.deepEqual(srv.upgrades, [], 'no upgrade, no code');
+  assert.equal(srv.connections, 0);
+  assert.match(gladys.fake.connectionStatus.message.en, new RegExp(srv.fingerprint));
+  assert.deepEqual(store.data.pins ?? {}, {});
+});

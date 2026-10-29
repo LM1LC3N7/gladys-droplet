@@ -312,7 +312,7 @@ test('pairing code refused: the test button tries once per click, at the pace, a
   assert.equal(t.store.data.refused, null);
 });
 
-test('an old firmware closing at once, twice in a row: the code is taken as refused', async () => {
+test('an old firmware closing at once, twice in a row: the code is taken as refused (most likely)', async () => {
   const droplet = createDroplet();
   droplet.mode = 'closeAtOnce';
   const t = await setup({ droplet });
@@ -320,9 +320,132 @@ test('an old firmware closing at once, twice in a row: the code is taken as refu
   assert.match(text(t.status()), /closed by the Droplet at once/);
   await t.wait(30 * SECOND);
   assert.equal(droplet.attempts, 2);
-  assert.match(text(t.status()), /refuses the pairing code/);
+  assert.match(text(t.status()), /most likely it refuses the pairing code.*no more local clients/);
+  assert.deepEqual(t.store.data.refused, { key: `${HOST}:443`, early: true });
   await t.wait(HOUR);
   assert.equal(droplet.attempts, 2);
+});
+
+test('refused on an old firmware: a click that only opens lifts nothing (one attempt per click, kept across a restart); data lifts it', async () => {
+  const droplet = createDroplet();
+  droplet.mode = 'closeAtOnce';
+  const t = await setup({ droplet });
+  await t.start();
+  await t.wait(30 * SECOND);
+  assert.equal(droplet.attempts, 2);
+  await t.wait(MINUTE);
+  // A click: the Droplet opens then closes at once again.
+  await t.gladys.fake.action('test_connection');
+  await t.settle();
+  assert.equal(droplet.attempts, 3);
+  assert.ok(t.store.data.refused, 'still refused');
+  await t.wait(HOUR);
+  assert.equal(droplet.attempts, 3, 'one attempt per click');
+  const u = await setup({ store: t.store, droplet, now: t.clock.now() });
+  await u.start();
+  await u.wait(HOUR);
+  assert.equal(droplet.attempts, 3, 'nothing after a restart');
+  // The right code at last: data comes, the refusal is lifted.
+  droplet.mode = 'ok';
+  await u.gladys.fake.action('test_connection');
+  await u.settle();
+  assert.equal(droplet.attempts, 4);
+  assert.equal(u.store.data.refused, null);
+  assert.equal(u.status().connected, true);
+  await t.app.stop();
+  await u.app.stop();
+});
+
+test('refused (401): an open without data lifts nothing; data does', async () => {
+  const droplet = createDroplet();
+  droplet.mode = 'refused';
+  const t = await setup({ droplet });
+  await t.start();
+  droplet.mode = 'ok';
+  droplet.sendInfo = false;
+  await t.wait(MINUTE);
+  await t.gladys.fake.action('test_connection');
+  await t.settle();
+  assert.equal(droplet.attempts, 2);
+  assert.ok(t.store.data.refused, 'opened, no data yet: still refused');
+  droplet.send({ flow: 1 });
+  await t.settle();
+  assert.equal(t.store.data.refused, null);
+});
+
+test('the pairing code never reaches /data, a status, a log line nor Gladys, on every failure path', async () => {
+  const SECRET = 'Zq7-Secret-91x';
+  const fragments = [SECRET, 'Zq7', 'Secret-91', '91x'];
+  const check = (t, label) => {
+    const places = {
+      data: JSON.stringify(t.store.data),
+      statuses: JSON.stringify(t.gladys.fake.connectionStatuses),
+      logs: t.lines.join('\n'),
+      requests: JSON.stringify(t.gladys.fake.requests),
+    };
+    for (const [where, content] of Object.entries(places)) {
+      for (const f of fragments) assert.ok(!content.includes(f), `${label}: ${f} in ${where}`);
+    }
+  };
+  const run = async (label, prepare, config = { ...CONFIG, pairing_code: SECRET }) => {
+    const droplet = createDroplet();
+    droplet.code = SECRET;
+    prepare(droplet);
+    const t = await setup({ droplet, config });
+    await t.start();
+    await t.wait(2 * MINUTE);
+    await t.gladys.fake.action('test_connection');
+    await t.gladys.fake.action('accept_held');
+    await t.app.configUpdated(config);
+    await t.wait(MINUTE);
+    await t.app.stop();
+    check(t, label);
+  };
+  await run('refused', (d) => (d.mode = 'refused'));
+  await run('closed at once', (d) => (d.mode = 'closeAtOnce'));
+  await run('429', (d) => Object.assign(d, { mode: 'status', status: 429 }));
+  await run('503', (d) => Object.assign(d, { mode: 'status', status: 503 }));
+  await run('down', (d) => (d.mode = 'down'));
+  await run('certificate typed', () => {}, {
+    ...CONFIG,
+    pairing_code: SECRET,
+    certificate_fingerprint: OTHER_FP,
+  });
+  await run('invalid code', () => {}, { ...CONFIG, pairing_code: 'Zq7 Secret-91x' });
+  await run('success', (d) => (d.mode = 'ok'));
+});
+
+test('a second device id on one connection closes it', async () => {
+  const t = await setup();
+  await t.start();
+  t.droplet.send({ ...t.droplet.info, ids: 'Droplet-9z9z' });
+  await t.settle();
+  assert.ok(t.droplet.connections[0].closed);
+  assert.match(t.lines.join('\n'), /two device ids on one connection/);
+});
+
+test('a last attempt dated in the future in /data is brought to now: the next one 30 s later', async () => {
+  const store = createMemoryStore({ lastAttemptAt: NOW + 24 * HOUR });
+  const t = await setup({ store });
+  await t.start();
+  assert.equal(t.droplet.attempts, 0);
+  await t.wait(30 * SECOND);
+  assert.equal(t.droplet.attempts, 1);
+});
+
+test('a burst of held reports: one log line, then at most one a minute', async () => {
+  const t = await setup({ devices: [created()] });
+  await t.start();
+  for (let i = 0; i < 600; i += 1) t.droplet.send({ volume: 900_000 });
+  await t.settle();
+  const held = () => t.lines.filter((l) => /too large/.test(l)).length;
+  assert.equal(held(), 1);
+  for (let i = 0; i < 600; i += 1) t.droplet.send({ volume: -900_000 });
+  await t.wait(MINUTE);
+  t.droplet.send({ volume: -900_000 });
+  await t.settle();
+  assert.equal(held(), 3);
+  assert.match(t.lines.at(-1), /601 negative volume report/);
 });
 
 test('429 and 5xx: a pause kept in /data, doubled', async () => {
