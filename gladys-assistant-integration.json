@@ -1,177 +1,91 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "Droplet",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Unofficial: Droplet (Hydrific) water flow sensor on your network: flow, water index, leaks.",
+    "fr": "Non officiel : capteur de débit d'eau Droplet (Hydrific) en local : débit, index, fuites."
   },
-  "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
+  "version": "0.1.0",
+  "docker_image": "ghcr.io/lm1lc3n7/gladys-droplet:0.1.0",
   "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "cover_image": "https://raw.githubusercontent.com/LM1LC3N7/gladys-droplet/main/cover.png",
+  "categories": ["energy", "security"],
+  "transports": ["local"],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": { "en": "Droplet", "fr": "Droplet" },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "Unofficial connector, not affiliated with Hydrific nor LIXIL. It reads a Droplet clamp-on water flow sensor through its local WebSocket (TLS on your network, firmware 1.4.0 or later), as Hydrific's own pydroplet library does: the flow rate, a water index built from the volumes the Droplet reports, its connectivity to the Hydrific servers, the quality of its ultrasonic signal and its leak alerts (these two only while the Droplet reaches the Hydrific servers). Read-only: no setting nor command is ever sent to the Droplet. Never tested with a real Droplet.",
+        "fr": "Connecteur non officiel, sans lien avec Hydrific ni LIXIL. Il lit un capteur de débit d'eau Droplet (à clipser sur le tuyau) par son WebSocket local (TLS sur votre réseau, firmware 1.4.0 ou plus récent), comme le fait la bibliothèque pydroplet d'Hydrific : le débit, un index d'eau construit à partir des volumes que le Droplet relève, sa connexion aux serveurs Hydrific, la qualité de son signal ultrasonore et ses alertes de fuite (ces deux dernières seulement quand le Droplet joint les serveurs Hydrific). Lecture seule : aucun réglage ni aucune commande n'est jamais envoyé au Droplet. Jamais testé avec un vrai Droplet."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://github.com/LM1LC3N7/gladys-droplet/blob/main/docs/fr.md",
+          "label": { "en": "Guide (French)", "fr": "Guide (français)" }
+        },
+        {
+          "url": "https://github.com/LM1LC3N7/gladys-droplet/blob/main/docs/en.md",
+          "label": { "en": "Guide (English)", "fr": "Guide (anglais)" }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
-      "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
-      },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
+      "key": "address",
+      "type": "string",
       "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
+      "label": { "en": "Droplet address", "fr": "Adresse du Droplet" },
+      "description": {
+        "en": "The IP address of the Droplet on your home network (shown by your router), with a port only if it is not 443. Preferably give it a fixed address.",
+        "fr": "L'adresse IP du Droplet sur votre réseau domestique (visible dans votre box), avec un port seulement s'il n'est pas 443. Donnez-lui de préférence une adresse fixe."
+      },
+      "placeholder": { "en": "e.g. 192.168.1.30", "fr": "ex. 192.168.1.30" }
     },
     {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
-      "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
-      },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
+      "key": "pairing_code",
+      "type": "secret",
       "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
-    },
-    {
-      "key": "unit",
-      "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
-      "required": false,
-      "default": "celsius",
-      "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
-      ]
-    },
-    {
-      "key": "poll_frequency",
-      "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
+      "label": { "en": "Pairing code", "fr": "Code d'appairage" },
       "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
-      },
+        "en": "The pairing code the Droplet app shows for local access. Kept by Gladys in its database, never shown again, sent only to the Droplet above, over TLS to its pinned certificate; never logged.",
+        "fr": "Le code d'appairage que l'application Droplet affiche pour l'accès local. Gardé par Gladys dans sa base, jamais réaffiché, envoyé seulement au Droplet ci-dessus, en TLS vers son certificat épinglé ; jamais écrit dans les journaux."
+      }
+    },
+    {
+      "key": "certificate_fingerprint",
+      "type": "string",
       "required": false,
-      "default": 300,
-      "min": 60,
-      "max": 3600
+      "label": {
+        "en": "Certificate fingerprint (optional)",
+        "fr": "Empreinte du certificat (facultatif)"
+      },
+      "description": {
+        "en": "Leave empty: the certificate of the Droplet is pinned at the first connection. Fill it only when the status says the certificate changed (a Droplet replaced or reset) and shows the new fingerprint: copy it here and save.",
+        "fr": "Laissez vide : le certificat du Droplet est épinglé à la première connexion. Remplissez-le seulement quand le statut indique que le certificat a changé (Droplet remplacé ou réinitialisé) et affiche la nouvelle empreinte : copiez-la ici et enregistrez."
+      },
+      "placeholder": { "en": "e.g. AB:CD:EF:...", "fr": "ex. AB:CD:EF:..." }
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
-      "timeout_seconds": 30
+      "key": "test_connection",
+      "timeout_seconds": 30,
+      "label": { "en": "Test the connection", "fr": "Tester la connexion" },
+      "description": {
+        "en": "While connected, gives the flow rate and the water index. Otherwise connects once when an attempt is due (never two attempts less than 30 seconds apart), even after a refused pairing code.",
+        "fr": "Une fois connecté, donne le débit et l'index d'eau. Sinon, se connecte une fois quand un essai est dû (jamais deux essais à moins de 30 secondes), même après un code d'appairage refusé."
+      }
     },
     {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ]
-    }
-  ],
-  "scene_triggers": [
-    {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
+      "key": "accept_held",
+      "timeout_seconds": 30,
+      "label": { "en": "Accept the held volume", "fr": "Accepter le volume retenu" },
       "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
-      },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
-        },
-        {
-          "key": "target",
-          "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
-          "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
-          ]
-        }
-      ],
-      "variables": [
-        {
-          "key": "target",
-          "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
-        }
-      ]
-    }
-  ],
-  "scene_actions": [
-    {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
-      },
-      "timeout_seconds": 15,
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ],
-      "outputs": [
-        {
-          "key": "signalled",
-          "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
-        }
-      ]
-    }
-  ],
-  "widgets": [
-    {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
-      },
-      "icon": "activity",
-      "action_timeout_seconds": 15
+        "en": "Only when the status shows a volume held back (a report too large for the time since the previous one) and it is right. Two clicks: the first lists what is held and takes nothing; the second, 3 seconds to 5 minutes later, adds exactly what was listed to the water index. Saving the configuration never accepts.",
+        "fr": "Seulement quand l'état affiche un volume retenu (un relevé trop grand pour le temps écoulé depuis le précédent) et que c'est juste. Deux clics : le premier liste ce qui est retenu et ne prend rien ; le second, de 3 secondes à 5 minutes plus tard, ajoute exactement ce qui a été listé à l'index d'eau. Enregistrer la configuration n'accepte jamais."
+      }
     }
   ]
 }

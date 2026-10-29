@@ -1,67 +1,102 @@
-# Template de démonstration
+# Droplet
 
-Ceci est la documentation utilisateur de l'intégration. Gladys ré-héberge ce
-fichier et affiche un lien **Documentation** permanent vers lui dans l'écran
-de configuration (dans la langue de l'utilisateur, avec l'anglais en repli) —
-c'est au moment de configurer que l'utilisateur en a le plus besoin. Gardez
-les courtes indications d'accueil dans les blocs `section` du `config_schema`
-du manifest ; mettez ici le pas-à-pas détaillé (captures d'écran, dépannage…).
+Intégration non officielle, sans lien avec Hydrific ni LIXIL. Elle lit un
+capteur de débit d'eau **Droplet** (à clipser sur le tuyau) sur votre réseau
+domestique, sans cloud, par le WebSocket local qu'ouvre le Droplet (firmware
+1.4.0 ou plus récent), comme le fait pydroplet, la bibliothèque d'Hydrific.
+**Lecture seule** : aucun réglage ni aucune commande n'est jamais envoyé au
+Droplet. **Jamais testé
+avec un vrai Droplet** : elle a été construite d'après pydroplet et testée sur
+un faux ; dites-nous ce que vous voyez.
+
+## Installation
+
+1. Dans l'application Droplet, trouvez le **code d'appairage** pour l'accès
+   local.
+2. Donnez au Droplet une adresse IP fixe dans votre box.
+3. Dans Gladys, remplissez **Adresse du Droplet** (ex. `192.168.1.30`, un port
+   seulement s'il n'est pas 443) et **Code d'appairage**, puis enregistrez.
+4. Le statut affiche `Connecté au Droplet <id>` dès que le Droplet a envoyé son
+   identifiant. Créez l'appareil dans l'onglet **Découverte**.
+
+Le code d'appairage est gardé par Gladys dans sa base, jamais réaffiché, et
+envoyé seulement au Droplet, en TLS, après vérification de son certificat.
 
 ## Ce que vous obtenez
 
-Six appareils de démonstration apparaissent après l'installation : une
-station météo (vraies données Open-Meteo), un interrupteur, une lampe
-variable, une prise connectée avec mesure de puissance, un détecteur de
-mouvement et une caméra.
+| Fonction             | Unité | Remarques                                                 |
+| -------------------- | ----- | --------------------------------------------------------- |
+| Débit                | m³/h  | le Droplet donne des L/min (1 L/min = 0,06 m³/h)          |
+| Index d'eau          | L     | construit à partir des relevés de volume, voir plus bas   |
+| Connexion au serveur | texte | tel que le Droplet le dit (ex. « Connected »)             |
+| Qualité du signal    | texte | signal ultrasonore, tel que le Droplet le dit             |
+| Fuite                | 0/1   | débit au-dessus du seuil réglé dans l'application Droplet |
+| Débit inhabituel     | 0/1   | chasse d'eau qui fuit, fuite lente                        |
 
-## Configuration
+Fuite et débit inhabituel ne sont connus que lorsque le Droplet joint les
+serveurs Hydrific. Les valeurs instantanées partent vers Gladys au plus toutes
+les 10 secondes ; une valeur de plus de 2 minutes n'est pas renvoyée comme
+neuve (après un redémarrage de Gladys, un appareil créé).
 
-1. Ouvrez l'onglet **Configuration** de l'intégration.
-2. Renseignez la **latitude** et la **longitude** que la station météo de
-   démonstration doit observer (Paris par défaut), et choisissez votre unité
-   de température. L'**intervalle de rafraîchissement** règle la fréquence
-   de lecture de la station météo et de la puissance de la prise : toutes
-   les 5 minutes par défaut, toutes les minutes au plus.
-3. Enregistrez : les appareils apparaissent dans l'onglet **Découverte**,
-   prêts à être ajoutés.
+## L'index d'eau
 
-Le réglage **Préférer la connexion locale** pilote la prise de
-démonstration : elle affiche en badge le canal réellement utilisé (local ou
-cloud), avec un point orange quand elle fonctionne en mode dégradé (local
-refusé, bascule cloud).
+Le Droplet n'a pas de compteur : il relève le volume écoulé depuis son relevé
+précédent (en mL, parfois négatif). L'intégration additionne les relevés en un
+index en litres, gardé dans /data d'un redémarrage à l'autre, publié une fois
+par minute après que /data l'a enregistré. Ses règles :
 
-## Actions
+- il ne vaut jamais 0 et ne baisse jamais : un relevé négatif diminue le total,
+  et l'index attend que le total repasse au-dessus (le statut dit de combien
+  dès 1 L) ;
+- un relevé plus grand que ce que 200 L/min (environ 53 gallons US/min)
+  apportent dans le temps écoulé depuis le relevé précédent (compté jusqu'à
+  10 minutes), plus 10 L, est **retenu** : affiché dans le statut (pastille
+  orange), gardé dans /data, jamais compté par le temps ni par la répétition.
+  Les relevés suivants comptent normalement. Si c'est juste, cliquez deux fois
+  sur **Accepter le volume retenu** (de 3 secondes à 5 minutes d'écart) : le
+  second clic ajoute exactement ce que le premier a listé. Un relevé négatif
+  aussi grand est ignoré (compté dans le statut) ;
+- les volumes relevés avant que le Droplet donne son identifiant comptent pour
+  ce Droplet dès qu'il l'a donné ; les volumes écoulés quand l'intégration
+  n'est pas connectée au Droplet ne sont pas connus (l'index reste où il
+  était) ;
+- si Gladys a déjà un index plus grand que /data (/data perdu), l'index repart
+  de la valeur de Gladys ;
+- un autre Droplet à l'adresse (remplacement) est un autre appareil, avec son
+  propre index. Supprimer puis recréer l'appareil garde l'index.
 
-- **Tester le fournisseur météo** — effectue une requête en direct vers
-  Open-Meteo et affiche la température et l'humidité actuelles sous le
-  bouton.
-- **Identifier un appareil** — choisissez un de vos appareils dans la liste
-  et il se signale (la lampe de démonstration « clignote » dans les logs).
+## Connexion
 
-## Scènes
+- Une connexion à la fois. Une connexion qui se termine est rouverte 30
+  secondes après l'essai précédent ; tant qu'elle échoue, après 30 s, 1, 2, 4... jusqu'à 30
+  minutes. Jamais deux essais à moins de 30 secondes, quoi qui le demande
+  (bouton de test, enregistrement, redémarrage : l'heure de l'essai est gardée
+  dans /data).
+- Un ping toutes les 30 secondes : sans réponse sous 15 secondes, la connexion
+  est fermée et rouverte plus tard.
+- **Code d'appairage refusé** (HTTP 401/403 à l'ouverture ou, avec un firmware
+  1.4.1 ou plus ancien, connexion fermée par le Droplet avant tout message,
+  deux fois de suite) : plus rien n'est tenté de soi-même tant que vous
+  n'enregistrez pas à nouveau le code ou que le bouton **Tester la connexion**
+  n'obtient pas de connexion (un essai par clic, au rythme ci-dessus).
+- HTTP 429 ou 5xx à l'ouverture : pause d'une minute, doublée jusqu'à 6 heures,
+  gardée d'un redémarrage à l'autre.
+- **Certificat** : épinglé à la première connexion (écrit dans /data avant
+  l'envoi du code). Un autre certificat ensuite : rien n'est envoyé et le
+  statut affiche son empreinte ; si vous avez remplacé ou réinitialisé le
+  Droplet, copiez-la dans **Empreinte du certificat** et enregistrez.
+- /data illisible : aucun certificat n'est appris (rien n'est envoyé sans
+  empreinte saisie), l'index n'est pas publié (ses volumes sont gardés en
+  mémoire et ajoutés dès que /data se lit à nouveau), et le fichier n'est
+  jamais écrasé.
 
-L'intégration ajoute ses propres cartes à l'éditeur de scènes (Gladys 5.1
-ou plus récent), dans la catégorie **Intégrations** :
+## Boutons
 
-- **Mouvement détecté** (déclencheur) — lance la scène quand un détecteur
-  de démonstration voit bouger quelque chose. Choisissez éventuellement le
-  détecteur et ce qui a bougé (personne, animal) ; laissés vides, toute
-  détection correspond. Les actions suivantes peuvent lire ce qui a bougé
-  avec `{{triggerEvent.data.target}}`.
-- **Identifier un appareil** (action) — fait se signaler l'appareil choisi.
-  Elle indique si l'appareil a pu se signaler, pour que les actions
-  suivantes puissent en dépendre.
+- **Tester la connexion** : une fois connecté, le débit et l'index ; sinon un
+  essai quand il est dû.
+- **Accepter le volume retenu** : voir « L'index d'eau ».
 
-## Tableau de bord
+## Non fait
 
-Ajoutez le widget **État de la démo** à un tableau de bord : il affiche en
-direct la température de la station météo et la puissance de la prise du
-bureau, la connexion utilisée par la prise (en orange si dégradée) et la
-position observée. Son bouton **Identifier la lampe** fait se signaler la
-lampe de démonstration.
-
-## Dépannage
-
-L'intégration journalise tout ce qu'elle fait : consultez les logs de
-l'intégration depuis l'interface Gladys (ou `docker logs` sur l'hôte) avec
-`LOG_LEVEL=debug` pour le détail complet.
+Pas de découverte sur le réseau (saisissez l'adresse), pas de réglage du
+Droplet, pas d'historique du cloud Hydrific.
