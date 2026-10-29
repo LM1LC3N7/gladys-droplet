@@ -70,3 +70,11 @@
 
 - A daily volume (the core has no water consumption API yet).
 - A "discard the held volume" button, if held reports turn out to be common.
+
+## Next patch
+
+- r2 m6: "Test the connection" returns the refusal text while the connection is open with no data yet; the
+  status fixes itself at the first data.
+- r2 m7: mutants N8 (`early` not read back from /data) and N9 (5xx pause not read back) survive: one read-back
+  test each.
+- r2 m8 (accepted): the last count of a burst of held reports is only logged at the next report.
